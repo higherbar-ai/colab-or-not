@@ -13,8 +13,9 @@
 #  limitations under the License.
 
 import os
-import sys
+import platform
 import subprocess
+import sys
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 from dataclasses import dataclass
@@ -34,6 +35,9 @@ class NotebookBridge:
     :param requirements_path: Relative path to text file with requirements within repo (if any; e.g.,
         "src/requirements.txt"; requires github_repo be supplied)
     :type requirements_path: Optional[str]
+    :param system_packages: List of system packages to install with apt-get, brew, or choco (requires one of those
+        system package managers to be available)
+    :type system_packages: Optional[List[str]]
     :param module_paths: List of relative paths to Python modules to fetch in Colab (if any; requires github_repo be
         supplied)
     :type module_paths: Optional[List[str]]
@@ -48,6 +52,7 @@ class NotebookBridge:
     github_repo: Optional[str] = None
     github_branch: str = "main"
     requirements_path: Optional[str] = None
+    system_packages: Optional[List[str]] = None
     module_paths: Optional[List[str]] = None
     config_path: Optional[str] = None
     config_template: Optional[Dict[str, str]] = None
@@ -143,37 +148,52 @@ class NotebookBridge:
 
     def _install_dependencies(self) -> None:
         """
-        Install required dependencies from requirements.txt if specified.
+        Install required dependencies if specified.
         """
 
-        if self._dependencies_installed or not self.requirements_path:
+        if self._dependencies_installed:
             return
 
         try:
-            if self._is_colab:
-                # Fetch requirements.txt from GitHub
-                req_url = self._get_github_raw_url(self.requirements_path)
-                response = requests.get(req_url)
-                response.raise_for_status()
+            # Handle Python dependencies first
+            if self.requirements_path:
+                if self._is_colab:
+                    # Fetch requirements.txt from GitHub
+                    req_url = self._get_github_raw_url(self.requirements_path)
+                    response = requests.get(req_url)
+                    response.raise_for_status()
 
-                # Write requirements to a temporary file
-                req_path = Path("/content/requirements.txt")
-                req_path.write_text(response.text)
-            else:
-                # Find project root and use relative path from there
-                project_root = self._find_project_root()
-                if not project_root:
-                    raise FileNotFoundError("Could not find project root directory")
+                    # Write requirements to a temporary file
+                    req_path = Path("/content/requirements.txt")
+                    req_path.write_text(response.text)
+                else:
+                    # Find project root and use relative path from there
+                    project_root = self._find_project_root()
+                    if not project_root:
+                        raise FileNotFoundError("Could not find project root directory")
 
-                req_path = project_root / self.requirements_path
-                if not req_path.exists():
-                    raise FileNotFoundError(f"Requirements file not found at {req_path}")
+                    req_path = project_root / self.requirements_path
+                    if not req_path.exists():
+                        raise FileNotFoundError(f"Requirements file not found at {req_path}")
 
-            # Install requirements
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", str(req_path)])
+                # Install requirements
+                subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", str(req_path)])
+
+            # Handle system packages next
+            if self.system_packages:
+                for system_package in self.system_packages:
+                    os_type = platform.system()
+                    if os_type == "Linux":
+                        subprocess.run(["sudo", "apt-get", "install", "-y", system_package], check=True)
+                    elif os_type == "Darwin":  # macOS
+                        subprocess.run(["brew", "install", "--cask", system_package], check=True)
+                    elif os_type == "Windows":
+                        subprocess.run(["choco", "install", system_package, "-y"], check=True)
+                    else:
+                        raise Exception(f"Unsupported operating system: {os_type}")
+
             self._dependencies_installed = True
             print("Dependencies installed successfully.")
-
         except Exception as e:
             raise Exception(f"Failed to install dependencies: {str(e)}")
 
@@ -229,6 +249,31 @@ class NotebookBridge:
                 return default_value
         else:
             return os.getenv(setting_name.upper(), default_value)
+
+    def get_output_dir(self, not_colab_dir: str, colab_subdir: str = ""):
+        """
+        Get the output directory for output files, using the specified directory when running outside Colab and
+        a subdirectory within /content when running in Colab. Will automatically create the directory if it doesn't
+        exist.
+
+        :param not_colab_dir: Path prefix to use when not running in Colab
+        :type not_colab_dir: str
+        :param colab_subdir: Subdirectory within /content to use when running in Colab (defaults to "")
+        :type colab_subdir: str
+        :return: Output directory
+        :rtype: str
+        """
+
+        # Set path based on environment
+        if self._is_colab:
+            retval = f"/content/{colab_subdir}"
+        else:
+            retval = os.path.expanduser(not_colab_dir)
+
+        # Ensure path exists
+        os.makedirs(retval, exist_ok=True)
+
+        return retval
 
     def _find_project_root(self) -> Optional[Path]:
         """

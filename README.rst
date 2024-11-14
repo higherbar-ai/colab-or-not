@@ -17,8 +17,9 @@ Overview
 If you want to create a Jupyter notebook that can run in Google Colab as well as a local or other environment, there
 are several annoying things you need to worry about:
 
-#. Installing required packages
-#. Installing required modules
+#. Installing required Python packages
+#. Installing required system packages
+#. Installing required Python modules
 #. Loading settings
 #. Prompting for input files
 
@@ -34,6 +35,7 @@ Example usage::
     notebook_env = NotebookBridge(
         github_repo="higherbar-ai/colab-or-not",
         requirements_path="example-requirements.txt",
+        system_packages=[],
         module_paths=[
             "src/example_module.py",
         ],
@@ -65,6 +67,11 @@ Example usage::
         print("No input files selected or uploaded.")
     for input_file in input_files:
         print(f"Input file: {input_file}")
+
+    # Output the output directory (here, just the user home directory or Colab content root)
+    output_dir = notebook_env.get_output_dir(not_colab_dir="~", colab_subdir="")
+    print()
+    print(f"Output directory: {output_dir}")
 
 For a runnable version of the above, see
 `the example.ipynb notebook <https://github.com/higherbar-ai/colab-or-not/blob/main/src/example.ipynb>`_.
@@ -104,11 +111,11 @@ exist, ``setup_environment()`` will raise an exception that tells the user they 
 configuration file before trying again; if you had specified a ``config_template``, a default configuration file will
 be written out for the user, based on your template.
 
-Installing requirements
-^^^^^^^^^^^^^^^^^^^^^^^
+Installing Python packages
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-To install requirements, you can explicitly add ``%pip install packagename`` lines to your notebook, or you can use the
-``NotebookBridge`` class to automatically install requirements from a ``requirements.txt`` file in your GitHub repo.
+To install Python packages, you can explicitly add ``%pip install packagename`` lines to your notebook, or you can use
+the ``NotebookBridge`` class to automatically install requirements from a ``requirements.txt`` file in your GitHub repo.
 For example::
 
     from colab_or_not import NotebookBridge
@@ -121,6 +128,23 @@ For example::
 
 Your file can be named anything you like, but it should be in the format of a ``requirements.txt`` file. It also doesn't
 have to be in the root of your repo; you can specify a path to it, like ``src/requirements.txt``.
+
+Installing system packages
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To install system packages, you can explicitly add `apt-get`, `brew`, or `choco` commands, depending on the system, or
+you can use the ``NotebookBridge`` class to automatically install system packages. For example::
+
+    from colab_or_not import NotebookBridge
+
+    notebook_env = NotebookBridge(
+        system_packages=[
+            "libreoffice",
+        ]
+    )
+    notebook_env.setup_environment()
+
+Each system package will be installed using the appropriate package manager for the current system.
 
 Importing custom modules from your GitHub repo
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -163,6 +187,22 @@ If you want to read user files in your notebook, you can call the ``get_input_fi
 When running in Google Colab, the user will be prompted to upload one or more files.
 
 When running locally, the user will be prompted to select one or more files.
+
+Choosing an output directory
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If you want to write output files in your notebook, you can call the ``get_output_dir()`` method. For example::
+
+    from colab_or_not import NotebookBridge
+
+    notebook_env = NotebookBridge()
+
+    output_dir = notebook_env.get_output_dir(not_colab_dir="~/ai-workflows", colab_subdir="")
+    print(f"Output directory: {output_dir}")
+
+Your not-colab directory can be any path you like, though you might want to include `~` to start at the current user's
+home directory. For Colab, you can optionally specify a subdirectory within the main content folder. Either way, if the
+directory doesn't exist, it will be created automatically.
 
 Adding an Open in Colab badge
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
