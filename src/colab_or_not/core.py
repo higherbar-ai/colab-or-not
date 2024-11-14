@@ -121,7 +121,7 @@ class NotebookBridge:
             raise Exception(f"Please configure settings in {config_path}, then try again")
 
         import dotenv
-        dotenv.load_dotenv(config_path)
+        dotenv.load_dotenv(config_path, override=True)
         self._config_loaded = True
 
     def _get_github_raw_url(self, path: str) -> str:
