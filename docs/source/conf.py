@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.abspath('../../src/colab_or_not'))
 project = 'colab-or-not'
 copyright = '2024, Higher Bar AI, PBC'
 author = 'Higher Bar AI, PBC'
-release = '0.3.0'
+release = '0.4.0'
 
 
 # -- General configuration ---------------------------------------------------

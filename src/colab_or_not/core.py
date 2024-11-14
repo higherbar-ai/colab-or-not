@@ -248,7 +248,7 @@ class NotebookBridge:
             except Exception:
                 return default_value
         else:
-            return os.getenv(setting_name.upper(), default_value)
+            return os.getenv(setting_name, default_value)
 
     def get_output_dir(self, not_colab_dir: str, colab_subdir: str = ""):
         """
